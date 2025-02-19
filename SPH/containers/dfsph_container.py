@@ -1,9 +1,12 @@
-import taichi as ti
-import numpy as np
-import trimesh as tm
 from functools import reduce
+
+import numpy as np
+import taichi as ti
+import trimesh as tm
+
 from ..utils import SimConfig
 from .base_container import BaseContainer
+
 
 @ti.data_oriented
 class DFSPHContainer(BaseContainer):

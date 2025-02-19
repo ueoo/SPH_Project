@@ -1,9 +1,11 @@
 # implementatioin of paper "Predictive-Corrective Incompressible SPH"
 # fluid rigid interaction force implemented as paper "Versatile Rigid-Fluid Coupling for Incompressible SPH"
-import taichi as ti
 import numpy as np
+import taichi as ti
+
 from ..containers import PCISPHContainer
 from .base_solver import BaseSolver
+
 
 @ti.data_oriented
 class PCISPHSolver(BaseSolver):
@@ -14,20 +16,22 @@ class PCISPHSolver(BaseSolver):
         self.max_iterations = 1000
         self.eta = 0.001
 
-
     @ti.kernel
     def compute_predicted_velocity(self):
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                self.container.particle_predicted_velocities[p_i] = self.container.particle_velocities[p_i] + self.dt[None] * (self.container.particle_accelerations[p_i] + self.container.particle_pressure_accelerations[p_i])
-
+                self.container.particle_predicted_velocities[p_i] = self.container.particle_velocities[p_i] + self.dt[
+                    None
+                ] * (self.container.particle_accelerations[p_i] + self.container.particle_pressure_accelerations[p_i])
 
     @ti.kernel
     def compute_predicted_position(self):
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                self.container.particle_predicted_positions[p_i] = self.container.particle_positions[p_i] + self.dt[None] * self.container.particle_predicted_velocities[p_i]
-
+                self.container.particle_predicted_positions[p_i] = (
+                    self.container.particle_positions[p_i]
+                    + self.dt[None] * self.container.particle_predicted_velocities[p_i]
+                )
 
     @ti.kernel
     def compute_density_star(self):
@@ -42,8 +46,7 @@ class PCISPHSolver(BaseSolver):
         if self.container.fluid_particle_num[None] > 0:
             self.container.density_error[None] = error / self.container.fluid_particle_num[None]
         else:
-            self.container.density_error[None] = 0.0    
-                
+            self.container.density_error[None] = 0.0
 
     @ti.func
     def compute_density_star_task(self, p_i, p_j, ret: ti.template()):
@@ -54,23 +57,23 @@ class PCISPHSolver(BaseSolver):
             R = pos_i - pos_j
             R_mod = R.norm()
             ret += self.container.particle_rest_volumes[p_j] * self.kernel_W(R_mod)
-        
+
         elif self.container.particle_materials[p_j] == self.container.material_rigid:
             pos_j = self.container.particle_positions[p_j]
             R = pos_i - pos_j
             R_mod = R.norm()
             ret += self.container.particle_rest_volumes[p_j] * self.kernel_W(R_mod)
 
-
     @ti.kernel
     def update_pressure(self):
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                self.container.particle_pressures[p_i] += self.container.pcisph_k[None] * (self.density_0 - self.container.particle_densities_star[p_i])
+                self.container.particle_pressures[p_i] += self.container.pcisph_k[None] * (
+                    self.density_0 - self.container.particle_densities_star[p_i]
+                )
                 if self.container.particle_pressures[p_i] < 0.0:
                     self.container.particle_pressures[p_i] = 0.0
 
-    
     @ti.kernel
     def compute_temp_pressure_acceleration(self):
         self.container.particle_pressure_accelerations.fill(0.0)
@@ -79,7 +82,6 @@ class PCISPHSolver(BaseSolver):
                 ret_i = ti.Vector([0.0 for _ in range(self.container.dim)])
                 self.container.for_all_neighbors(p_i, self.compute_temp_pressure_acceleration_task, ret_i)
                 self.container.particle_pressure_accelerations[p_i] = ret_i
-                
 
     @ti.func
     def compute_temp_pressure_acceleration_task(self, p_i, p_j, ret: ti.template()):
@@ -93,8 +95,11 @@ class PCISPHSolver(BaseSolver):
             den_j = self.container.particle_densities[p_j]
 
             ret += (
-                - self.container.particle_masses[p_j] 
-                * (self.container.particle_pressures[p_i] / (den_i * den_i) + self.container.particle_pressures[p_j] / (den_j * den_j)) 
+                -self.container.particle_masses[p_j]
+                * (
+                    self.container.particle_pressures[p_i] / (den_i * den_i)
+                    + self.container.particle_pressures[p_j] / (den_j * den_j)
+                )
                 * nabla_ij
             )
 
@@ -102,10 +107,11 @@ class PCISPHSolver(BaseSolver):
             den_i = self.container.particle_densities[p_i]
 
             ret += (
-                - self.density_0 * self.container.particle_rest_volumes[p_j] 
-                * (self.container.particle_pressures[p_i] / (den_i * den_i)) * nabla_ij
+                -self.density_0
+                * self.container.particle_rest_volumes[p_j]
+                * (self.container.particle_pressures[p_i] / (den_i * den_i))
+                * nabla_ij
             )
-
 
     def refine(self):
         num_itr = 0
@@ -121,9 +127,8 @@ class PCISPHSolver(BaseSolver):
 
             if self.container.density_error[None] < self.eta:
                 break
-            
-        print(f"PCISPH - iteration: {num_itr} Avg density err: {self.container.density_error[None] * self.density_0}")
 
+        print(f"PCISPH - iteration: {num_itr} Avg density err: {self.container.density_error[None] * self.density_0}")
 
     @ti.kernel
     def compute_pcisph_k(self):
@@ -148,7 +153,12 @@ class PCISPHSolver(BaseSolver):
                         sumGradW += nabla_ij
                         sumGradW2 += nabla_ij.norm_sqr()
 
-        self.container.pcisph_k[None] = - 0.5 / (self.dt[None] * self.container.V0) / (self.dt[None] * self.container.V0) / (sumGradW.norm_sqr() + sumGradW2)
+        self.container.pcisph_k[None] = (
+            -0.5
+            / (self.dt[None] * self.container.V0)
+            / (self.dt[None] * self.container.V0)
+            / (sumGradW.norm_sqr() + sumGradW2)
+        )
 
     @ti.kernel
     def init_step(self):
@@ -158,16 +168,21 @@ class PCISPHSolver(BaseSolver):
 
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                self.container.particle_predicted_velocities[p_i] = self.container.particle_velocities[p_i] + self.dt[None] * self.container.particle_accelerations[p_i]
-                self.container.particle_predicted_positions[p_i] = self.container.particle_positions[p_i] + self.dt[None] * self.container.particle_predicted_velocities[p_i]
-
+                self.container.particle_predicted_velocities[p_i] = (
+                    self.container.particle_velocities[p_i]
+                    + self.dt[None] * self.container.particle_accelerations[p_i]
+                )
+                self.container.particle_predicted_positions[p_i] = (
+                    self.container.particle_positions[p_i]
+                    + self.dt[None] * self.container.particle_predicted_velocities[p_i]
+                )
 
     def _step(self):
         self.container.prepare_neighborhood_search()
         self.compute_density()
         self.compute_non_pressure_acceleration()
         self.init_step()
-        self.refine() # compute correct pressure here
+        self.refine()  # compute correct pressure here
 
         # same procedure as WCSPH
         # use pressure to compute acceleration for fluid and rigid body
@@ -183,7 +198,6 @@ class PCISPHSolver(BaseSolver):
         self.renew_rigid_particle_state()
 
         self.enforce_domain_boundary_3D(self.container.material_fluid)
-
 
     def prepare(self):
         super().prepare()

@@ -1,9 +1,11 @@
 # implementatioin of paper "Position Based Fluids"
 # fluid rigid interaction force implemented as paper "Versatile Rigid-Fluid Coupling for Incompressible SPH"
-import taichi as ti
 import numpy as np
+import taichi as ti
+
 from ..containers import PBFContainer
 from .base_solver import BaseSolver
+
 
 @ti.data_oriented
 class PBFSolver(BaseSolver):
@@ -15,8 +17,6 @@ class PBFSolver(BaseSolver):
 
         self.poly6d_fac = 315.0 / 64.0 / np.pi
         self.spiky_grad_fac = -45.0 / np.pi
-
-
 
     @ti.func
     def kernel_W(self, R_mod):
@@ -30,8 +30,6 @@ class PBFSolver(BaseSolver):
 
         return res
 
-
-    
     @ti.func
     def kernel_gradient(self, R):
         # spiky gradient
@@ -46,7 +44,6 @@ class PBFSolver(BaseSolver):
 
         return res
 
-
     @ti.func
     def compute_scorr(self, R_mod):
         x = self.kernel_W(R_mod) / self.kernel_W(self.corr_deltaQ_coeff * self.container.dh)
@@ -56,28 +53,24 @@ class PBFSolver(BaseSolver):
 
         return -self.corrK * x
 
-
-
     def refine(self):
         for i in range(5):
             self.compute_density()
             self.compute_lambda()
             self.fix_position()
 
-
     @ti.kernel
     def compute_lambda(self):
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                ret = ti.Vector([0.0 for _ in range(self.container.dim+1)])
+                ret = ti.Vector([0.0 for _ in range(self.container.dim + 1)])
                 self.container.for_all_neighbors(p_i, self.compute_sum_gradient_sqr_task, ret)
                 sum_gradient_i = ti.Vector([ret[d] for d in range(self.container.dim)])
                 sum_gradient_sqr_i = ret[self.container.dim] + sum_gradient_i.norm_sqr() + self.lambda_eps
 
                 # ! we did not use ti.max here
                 density_constraint_i = self.container.particle_densities[p_i] / self.density_0 - 1.0
-                self.container.particle_pbf_lambdas[p_i] = - density_constraint_i / sum_gradient_sqr_i
-                
+                self.container.particle_pbf_lambdas[p_i] = -density_constraint_i / sum_gradient_sqr_i
 
     @ti.func
     def compute_sum_gradient_sqr_task(self, p_i, p_j, ret: ti.template()):
@@ -87,7 +80,7 @@ class PBFSolver(BaseSolver):
         nabla_ij = self.kernel_gradient(R)
 
         if self.container.particle_materials[p_j] == self.container.material_fluid:
-            nabla_ij *= (self.container.particle_masses[p_j] / self.density_0)
+            nabla_ij *= self.container.particle_masses[p_j] / self.density_0
             ret[self.container.dim] += nabla_ij.norm_sqr()
             for d in ti.static(range(self.container.dim)):
                 ret[d] += nabla_ij[d]
@@ -95,11 +88,10 @@ class PBFSolver(BaseSolver):
         elif self.container.particle_materials[p_j] == self.container.material_rigid:
             den_i = self.container.particle_densities[p_i]
             den_j = den_i
-            nabla_ij *= (self.container.particle_rest_volumes[p_j] * den_j / self.density_0)
+            nabla_ij *= self.container.particle_rest_volumes[p_j] * den_j / self.density_0
             ret[self.container.dim] += nabla_ij.norm_sqr()
             for d in ti.static(range(self.container.dim)):
                 ret[d] += nabla_ij[d]
-
 
     @ti.kernel
     def fix_position(self):
@@ -128,14 +120,21 @@ class PBFSolver(BaseSolver):
         elif self.container.particle_materials[p_j] == self.container.material_rigid:
             lambda_j = lambda_i
             den_i = self.container.particle_densities[p_i]
-            ret += (lambda_i + lambda_j + scorr_ij) * nabla_ij * self.container.particle_rest_volumes[p_j] * self.density_0
+            ret += (
+                (lambda_i + lambda_j + scorr_ij)
+                * nabla_ij
+                * self.container.particle_rest_volumes[p_j]
+                * self.density_0
+            )
 
     @ti.kernel
     def recompute_fluid_velocity(self):
         for p_i in range(self.container.particle_num[None]):
             if self.container.particle_materials[p_i] == self.container.material_fluid:
-                self.container.particle_velocities[p_i] = (self.container.particle_positions[p_i] - self.container.particle_old_positions[p_i]) / self.dt[None]
-                 
+                self.container.particle_velocities[p_i] = (
+                    self.container.particle_positions[p_i] - self.container.particle_old_positions[p_i]
+                ) / self.dt[None]
+
     @ti.kernel
     def save_old_position(self):
         for p_i in range(self.container.particle_num[None]):
@@ -156,8 +155,3 @@ class PBFSolver(BaseSolver):
         self.enforce_domain_boundary(self.container.material_fluid)
 
         self.recompute_fluid_velocity()
-
-
-    
-
-       

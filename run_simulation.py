@@ -1,19 +1,32 @@
-import os
 import argparse
-import taichi as ti
+import os
+
 import numpy as np
+import taichi as ti
+
+from SPH.containers import (
+    DFSPHContainer,
+    IISPHContainer,
+    PBFContainer,
+    PCISPHContainer,
+    WCSPHContainer,
+)
+from SPH.fluid_solvers import (
+    DFSPHSolver,
+    IISPHSolver,
+    PBFSolver,
+    PCISPHSolver,
+    WCSPHSolver,
+)
 from SPH.utils import SimConfig
-from SPH.containers import DFSPHContainer, WCSPHContainer, PCISPHContainer, PBFContainer, IISPHContainer
-from SPH.fluid_solvers import DFSPHSolver, WCSPHSolver, PCISPHSolver, PBFSolver, IISPHSolver
+
 
 ti.init(arch=ti.gpu, device_memory_fraction=0.8)
 
 #! due to code legacy, please use domain_start = [0, 0, 0]
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--scene_file',
-                        default='',
-                        help='scene file')
+    parser.add_argument("--scene_file", default="", help="scene file")
     args = parser.parse_args()
     scene_path = args.scene_file
     config = SimConfig(scene_file_path=scene_path)
@@ -34,7 +47,7 @@ if __name__ == "__main__":
         total_time = 10.0
 
     total_rounds = int(total_time / config.get_cfg("timeStepSize"))
-    
+
     if config.get_cfg("outputInterval"):
         output_interval = config.get_cfg("outputInterval")
 
@@ -66,8 +79,7 @@ if __name__ == "__main__":
 
     solver.prepare()
 
-
-    window = ti.ui.Window('SPH', (1024, 1024), show_window = False, vsync=False)
+    window = ti.ui.Window("SPH", (1024, 1024), show_window=False, vsync=False)
 
     scene = ti.ui.Scene()
     # feel free to adjust the position of the camera as needed
@@ -94,7 +106,7 @@ if __name__ == "__main__":
     dim = len(domain_end)
     if len(domain_end) == 3:
         x_max, y_max, z_max = domain_end
-        box_anchors = ti.Vector.field(3, dtype=ti.f32, shape = 8)
+        box_anchors = ti.Vector.field(3, dtype=ti.f32, shape=8)
         box_anchors[0] = ti.Vector([0.0, 0.0, 0.0])
         box_anchors[1] = ti.Vector([0.0, y_max, 0.0])
         box_anchors[2] = ti.Vector([x_max, 0.0, 0.0])
@@ -125,14 +137,14 @@ if __name__ == "__main__":
             scene.point_light((2.0, 2.0, 2.0), color=(1.0, 1.0, 1.0))
             scene.particles(container.x_vis_buffer, radius=container.dx, per_vertex_color=container.color_vis_buffer)
 
-            scene.lines(box_anchors, indices=box_lines_indices, color = (0.99, 0.68, 0.28), width = 1.0)
+            scene.lines(box_anchors, indices=box_lines_indices, color=(0.99, 0.68, 0.28), width=1.0)
             canvas.scene(scene)
-    
+
         if output_frames:
             if cnt % output_interval == 0:
                 os.makedirs(f"{scene_name}_output/{cnt:06}", exist_ok=True)
                 window.save_image(f"{scene_name}_output/{cnt:06}/raw_view.png")
-        
+
         if cnt % output_interval == 0:
             if output_ply:
                 os.makedirs(f"{scene_name}_output/{cnt:06}", exist_ok=True)
@@ -146,7 +158,7 @@ if __name__ == "__main__":
                 os.makedirs(f"{scene_name}_output/{cnt:06}", exist_ok=True)
                 for r_body_id in container.object_id_rigid_body:
                     with open(f"{scene_name}_output/{cnt:06}/mesh_object_{r_body_id}.obj", "w") as f:
-                        e = container.object_collection[r_body_id]["mesh"].export(file_type='obj')
+                        e = container.object_collection[r_body_id]["mesh"].export(file_type="obj")
                         f.write(e)
 
         cnt += 1

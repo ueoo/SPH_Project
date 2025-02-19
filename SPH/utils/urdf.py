@@ -32,5 +32,5 @@ def create_urdf(mesh_path, mass, scale, urdf_path):
 </robot>
     """
 
-    with open(urdf_path, 'w') as file:
+    with open(urdf_path, "w") as file:
         file.write(urdf_content.strip())

@@ -2,7 +2,8 @@
 
 import bpy
 
-bpy.context.preferences.addons['cycles'].preferences.get_devices()
+
+bpy.context.preferences.addons["cycles"].preferences.get_devices()
 print("Cycles Devices:")
-for device in bpy.context.preferences.addons['cycles'].preferences.devices:
+for device in bpy.context.preferences.addons["cycles"].preferences.devices:
     print(f"  {device.name}: {device.type}")

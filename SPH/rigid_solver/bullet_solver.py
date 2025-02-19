@@ -1,17 +1,21 @@
+import math
+import os
+
+from typing import Dict, List, Tuple, Union
+
+import numpy as np
 import pybullet as p
 import pybullet_data
 import taichi as ti
-import numpy as np
-import os
-import math
+
 from ..containers import BaseContainer
 from ..utils import create_urdf
-from typing import List, Tuple, Dict, Union
+
 
 # Note that the index returned by bullet is not the same as the index in the container. So we need to maintain a mapping between the two indices.
 # ! Note I did not implement changing time step in the middle of the simulation. So the time step is fixed to be the same as the one in the container.
 # ! also, we currently assume that the center of mass is exactly the base position of the object. This is not true in general.
-class PyBulletSolver():
+class PyBulletSolver:
     def __init__(self, container: BaseContainer, gravity: Tuple[float, float, float] = (0, -9.8, 0), dt: float = 1e-3):
         self.container = container
         self.total_time = 0.0
@@ -33,7 +37,7 @@ class PyBulletSolver():
             p.setAdditionalSearchPath(pybullet_data.getDataPath())
             p.setTimeStep(self.dt)
             p.setGravity(*gravity)
-            ground_rotation = p.getQuaternionFromEuler([- math.pi / 2, 0, 0]) # make y axis as up axis
+            ground_rotation = p.getQuaternionFromEuler([-math.pi / 2, 0, 0])  # make y axis as up axis
             # planeId = p.loadURDF("plane.urdf", baseOrientation=ground_rotation)
             self.create_boundary()
 
@@ -54,7 +58,7 @@ class PyBulletSolver():
         # this function create the domain boundary
 
         # we do not want the rigid to hit the boundary of fluid so we move each wall inside a little bit.
-        eps = self.container.padding + self.container.particle_diameter + self.container.domain_box_thickness 
+        eps = self.container.padding + self.container.particle_diameter + self.container.domain_box_thickness
         domain_start = self.container.domain_start
         domain_end = self.container.domain_end
         domain_start = np.array(domain_start) + eps
@@ -63,12 +67,30 @@ class PyBulletSolver():
         domain_center = (domain_start + domain_end) / 2
 
         # Creating each wall
-        self.create_wall(position=[domain_center[0], domain_start[1] - thickness / 1.9, domain_center[2]], half_extents=[domain_size[0] / 2, thickness / 2, domain_size[2] / 2])
-        self.create_wall(position=[domain_center[0], domain_end[1] + thickness / 1.9, domain_center[2]], half_extents=[domain_size[0] / 2, thickness / 2, domain_size[2] / 2])
-        self.create_wall(position=[domain_start[0] - thickness / 1.9, domain_center[1], domain_center[2]], half_extents=[thickness / 2, domain_size[1] / 2, domain_size[2] / 2])
-        self.create_wall(position=[domain_end[0] + thickness / 1.9, domain_center[1], domain_center[2]], half_extents=[thickness / 2, domain_size[1] / 2, domain_size[2] / 2])
-        self.create_wall(position=[domain_center[0], domain_center[1], domain_start[2] - thickness / 1.9], half_extents=[domain_size[0] / 2, domain_size[1] / 2, thickness / 2])
-        self.create_wall(position=[domain_center[0], domain_center[1], domain_end[2] + thickness / 1.9], half_extents=[domain_size[0] / 2, domain_size[1] / 2, thickness / 2])
+        self.create_wall(
+            position=[domain_center[0], domain_start[1] - thickness / 1.9, domain_center[2]],
+            half_extents=[domain_size[0] / 2, thickness / 2, domain_size[2] / 2],
+        )
+        self.create_wall(
+            position=[domain_center[0], domain_end[1] + thickness / 1.9, domain_center[2]],
+            half_extents=[domain_size[0] / 2, thickness / 2, domain_size[2] / 2],
+        )
+        self.create_wall(
+            position=[domain_start[0] - thickness / 1.9, domain_center[1], domain_center[2]],
+            half_extents=[thickness / 2, domain_size[1] / 2, domain_size[2] / 2],
+        )
+        self.create_wall(
+            position=[domain_end[0] + thickness / 1.9, domain_center[1], domain_center[2]],
+            half_extents=[thickness / 2, domain_size[1] / 2, domain_size[2] / 2],
+        )
+        self.create_wall(
+            position=[domain_center[0], domain_center[1], domain_start[2] - thickness / 1.9],
+            half_extents=[domain_size[0] / 2, domain_size[1] / 2, thickness / 2],
+        )
+        self.create_wall(
+            position=[domain_center[0], domain_center[1], domain_end[2] + thickness / 1.9],
+            half_extents=[domain_size[0] / 2, domain_size[1] / 2, thickness / 2],
+        )
 
     def create_wall(self, position, half_extents):
         shape = p.createCollisionShape(p.GEOM_BOX, halfExtents=half_extents)
@@ -93,7 +115,7 @@ class PyBulletSolver():
         urdf_file_path = mesh_file_path[:-4] + ".urdf"
         scale = rigid_body["scale"]
         mass = self.container.rigid_body_masses[container_idx]
-        
+
         # create a temporary urdf file to load the mesh
         create_urdf(mesh_file_path, mass, scale, urdf_file_path)
 
@@ -115,7 +137,9 @@ class PyBulletSolver():
         self.bullet_idx_to_container_idx[bullet_idx] = container_idx
 
         if is_dynamic:
-            self.container.rigid_body_original_centers_of_mass[container_idx] = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+            self.container.rigid_body_original_centers_of_mass[container_idx] = np.array(
+                [0.0, 0.0, 0.0], dtype=np.float32
+            )
             self.container.rigid_body_centers_of_mass[container_idx] = translation
             self.container.rigid_body_rotations[container_idx] = rotation_matrix
             self.container.rigid_body_velocities[container_idx] = velocity
@@ -126,7 +150,7 @@ class PyBulletSolver():
             p.changeDynamics(bullet_idx, -1, mass=0.0)
 
         self.present_rigid_object.append(container_idx)
-        
+
     def init_rigid_block(self, rigid_block):
         # TODO enable adding rigid block
         raise NotImplementedError
@@ -135,7 +159,7 @@ class PyBulletSolver():
         # ! here we assume the center of mass is exactly the base position
         bullet_idx = self.container_idx_to_bullet_idx[container_idx]
         com_pos, _ = p.getBasePositionAndOrientation(bullet_idx)
-        p.applyExternalForce(bullet_idx, -1, forceObj=force, posObj=com_pos, flags=p.WORLD_FRAME)        
+        p.applyExternalForce(bullet_idx, -1, forceObj=force, posObj=com_pos, flags=p.WORLD_FRAME)
 
     def apply_torque(self, container_idx, torque: Tuple[float, float, float]):
         bullet_idx = self.container_idx_to_bullet_idx[container_idx]
@@ -147,25 +171,31 @@ class PyBulletSolver():
 
         # apply force and torque to each rigid body
         for container_id in range(self.container.object_num[None]):
-            if self.container.rigid_body_is_dynamic[container_id] and self.container.object_materials[container_id] == self.container.material_rigid:
+            if (
+                self.container.rigid_body_is_dynamic[container_id]
+                and self.container.object_materials[container_id] == self.container.material_rigid
+            ):
                 force_i = self.container.rigid_body_forces[container_id]
                 torque_i = self.container.rigid_body_torques[container_id]
                 self.apply_force(container_id, force_i)
                 self.apply_torque(container_id, torque_i)
                 self.container.rigid_body_forces[container_id] = np.array([0.0, 0.0, 0.0])
                 self.container.rigid_body_torques[container_id] = np.array([0.0, 0.0, 0.0])
-        
+
         p.stepSimulation()
 
         # update rigid body states in the container. updating rigid particle state from center of mass and rotation is done in fluid solver.
         for container_id in range(self.container.object_num[None]):
-            if self.container.rigid_body_is_dynamic[container_id] and self.container.object_materials[container_id] == self.container.material_rigid:
+            if (
+                self.container.rigid_body_is_dynamic[container_id]
+                and self.container.object_materials[container_id] == self.container.material_rigid
+            ):
                 state_i = self.get_rigid_body_states(container_id)
                 self.container.rigid_body_centers_of_mass[container_id] = state_i["position"]
                 self.container.rigid_body_rotations[container_id] = state_i["rotation_matrix"]
                 self.container.rigid_body_velocities[container_id] = state_i["linear_velocity"]
                 self.container.rigid_body_angular_velocities[container_id] = state_i["angular_velocity"]
-        
+
     def get_rigid_body_states(self, container_idx):
         # ! here we use the information of base frame. We assume the center of mass is exactly the base position.
         bullet_idx = self.container_idx_to_bullet_idx[container_idx]
@@ -174,10 +204,10 @@ class PyBulletSolver():
 
         rotation_matrix = p.getMatrixFromQuaternion(orientation)
         rotation_matrix = np.reshape(rotation_matrix, (3, 3))
-            
+
         return {
             "linear_velocity": linear_velocity,
             "angular_velocity": angular_velocity,
             "position": position,
-            "rotation_matrix": rotation_matrix
+            "rotation_matrix": rotation_matrix,
         }

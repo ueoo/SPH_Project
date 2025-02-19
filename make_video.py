@@ -1,12 +1,14 @@
-import imageio.v2 as imageio
-import os
 import argparse
+import os
+
+import imageio.v2 as imageio
+
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--input_dir', type=str, required=True, help="experiement directory")
-parser.add_argument('--image_name', type=str, default='raw_view.png')
-parser.add_argument('--output_path', type=str, required=True, help="output video path")
-parser.add_argument('--fps', type=int, default=20)
+parser.add_argument("--input_dir", type=str, required=True, help="experiment directory")
+parser.add_argument("--image_name", type=str, default="raw_view.png")
+parser.add_argument("--output_path", type=str, required=True, help="output video path")
+parser.add_argument("--fps", type=int, default=20)
 
 args = parser.parse_args()
 
